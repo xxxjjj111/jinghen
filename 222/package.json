@@ -1,0 +1,57 @@
+{
+  "name": "jinghen",
+  "version": "1.0.0",
+  "description": "净痕 · 外发文件二次泄露体检台（桌面版）",
+  "main": "electron-main.js",
+  "author": "净痕项目组",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env RESIDUAL_DEVTOOLS=1 electron .",
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:linux": "electron-builder --linux --publish never"
+  },
+  "build": {
+    "appId": "com.jinghen.shadow",
+    "productName": "净痕",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "lib/**/*",
+      "samples/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "portable"
+      ],
+      "artifactName": "净痕-${version}.exe"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    }
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,15 @@
+# 依赖（体积大，不上传）
+node_modules/
+
+# 打包产物（体积大，不上传）
+dist/
+release/
+
+# 日志 / 系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 临时 / 调试产物
+/tmp/
+*.tmp

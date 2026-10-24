@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CSP 安全策略：纵深防御，即使有 XSS 漏洞也能限制脚本执行 -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com;
+        connect-src 'self' data: blob: https://cdn.jsdelivr.net https://unpkg.com https://cdn.bootcdn.net https://registry.npmmirror.com;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: blob:;
+        font-src 'self' data:;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+        frame-src 'none';
+        worker-src 'self' blob: https://cdn.jsdelivr.net;
+    ">
+    <title>净痕 · 文件信息泄露体检台</title>
+
+    <!-- PaddleOCR.js import map：浏览器深度学习 OCR，识别自然场景招牌/路标文字 -->
+    <!-- 首次联网加载（~10MB），之后浏览器缓存；若加载失败自动降级到 Tesseract.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "@paddleocr/paddleocr-js": "https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js@0.4.2/dist/index.mjs",
+            "js-yaml": "https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.mjs",
+            "clipper-lib": "https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/+esm",
+            "@techstark/opencv-js": "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/+esm",
+            "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.min.mjs"
+        }
+    }
+    </script>
+    <script type="module">
+        // 异步预加载 PaddleOCR.js，不阻塞页面其他逻辑
+        window.paddleOCRReady = import("@paddleocr/paddleocr-js")
+            .then(m => { window.PaddleOCR = m.PaddleOCR; window.paddleOCRAvailable = true; console.log("[PaddleOCR.js] 已加载"); return true; })
+            .catch(e => { console.warn("[PaddleOCR.js] 加载失败，将使用 Tesseract.js:", e.message); window.paddleOCRAvailable = false; return false; });
+    </script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 顶部标题栏 -->
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="logo">
+                <img src="lib/logo-shield.png" alt="净痕" style="height:28px;width:auto;">
+                <span class="logo-text">净痕</span>
+                <span class="logo-sub">CleanTrace</span>
+            </div>
+            <div class="topbar-right">
+                <span class="tagline">文件信息泄露体检台</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- ==================================================== -->
+        <!-- 页面 1：上传页 -->
+        <!-- ==================================================== -->
+        <section id="page-upload" class="page page-upload">
+            <div class="upload-container">
+                <h1 class="upload-title">
+                    你以为删干净了<span class="highlight">？</span>
+                </h1>
+                <p class="upload-subtitle">
+                    拖入文件，立即检测文档/图片/PDF 中的隐性泄露
+                </p>
+                <p class="upload-positioning">
+                    本工具定位为「外发前自查」：仅检测你自己准备外发的文件，识别已知残留类型。
+                    请勿用于窥探他人文件。
+                </p>
+
+                <!-- 文件上传区域：增加 multiple 属性 -->
+                <div id="drop-zone" class="drop-zone">
+                    <input type="file" id="file-input" multiple accept=".docx,.pdf,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif,.webp,.heic" style="display:none;" />
+                    <div class="drop-icon">📁</div>
+                    <p>将单个或多个文件拖拽至此处，或 <span class="browse-btn" onclick="document.getElementById('file-input').click()">点击上传</span></p>
+                </div>
+
+                <!-- 批量体检结果容器 -->
+                <div id="batch-results-container" class="batch-results-container" style="display: none;">
+                    <div class="batch-header">
+                        <h3>批量体检结果 (<span id="file-count">0</span> 个文件)</h3>
+                        <button id="batch-clean-btn" class="btn btn-primary" onclick="handleBatchClean()">批量一键清洗</button>
+                    </div>
+                    
+                    <!-- 文件列表渲染区 -->
+                    <div id="file-cards-list" class="file-cards-list"></div>
+                </div>
+                
+                <!-- 功能亮点 -->
+                <div class="features">
+                    <div class="feature-item">
+                        <div class="feature-icon">🔒</div>
+                        <div class="feature-text">
+                            <strong>纯本地运行</strong>
+                            <p>文件不上传服务器，所有检测在浏览器内完成</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">⚡</div>
+                        <div class="feature-text">
+                            <strong>跨格式检测</strong>
+                            <p>文档、图片、PDF 一站式风险扫描</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">🧹</div>
+                        <div class="feature-text">
+                            <strong>一键清洗</strong>
+                            <p>检测即清除，安全外发无忧</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================================================== -->
+        <!-- 页面 2：分析中 -->
+        <!-- ==================================================== -->
+        <section id="page-loading" class="page page-loading" style="display: none;">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">正在深度扫描...</div>
+                <div class="loading-file" id="loading-filename">filename.docx</div>
+                <div class="loading-size" id="loading-filesize">0 KB</div>
+            </div>
+        </section>
+
+        <!-- ==================================================== -->
+        <!-- 页面 3：结果页 -->
+        <!-- ==================================================== -->
+        <section id="page-result" class="page page-result" style="display: none;">
+            <div class="result-container">
+                <!-- 顶部：文件信息 + 返回按钮 -->
+                <div class="result-header">
+                    <button id="reupload-btn" class="btn btn-ghost">← 重新上传</button>
+                    <div class="file-info">
+                        <span id="result-filename" class="file-name">filename.docx</span>
+                        <span id="result-filesize" class="file-size">0 KB</span>
+                        <span id="result-filetype" class="file-type">DOCX</span>
+                    </div>
+                </div>
+
+                <!-- 风险评分大圆环 -->
+                <div class="risk-summary">
+                    <div id="risk-ring" class="risk-ring safe">
+                        <div class="ring-score">
+                            <span id="risk-score">0</span>
+                            <small>/ 100</small>
+                        </div>
+                        <div id="risk-level" class="ring-label">安全</div>
+                    </div>
+                    <div class="risk-reasons-wrap">
+                        <h3>风险说明</h3>
+                        <ul id="risk-reasons" class="risk-reasons">
+                            <!-- 动态填充 -->
+                        </ul>
+                        <button id="clean-btn" class="btn btn-danger">🧹 一键清洗并下载</button>
+                    </div>
+                </div>
+
+                <!-- 详细检测结果 -->
+                <div id="detail-sections" class="detail-sections">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 底部 -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <span>净痕 · 文件信息泄露体检台</span>
+        </div>
+        <div class="footer-inner footer-disclaimer">
+            <span>免责声明：检测结果仅覆盖已知残留类型，不构成绝对安全保证。本工具用于外发前自查，请勿用于窥探他人文件。</span>
+        </div>
+    </footer>
+
+    <!-- ==================================================== -->
+    <!-- 第三方库（优先本地文件，断网也能用） -->
+    <!-- 三个库已预下载到 lib/ 目录，双击 html 即可运行，无需联网 -->
+    <!-- ==================================================== -->
+
+    <!-- JSZip：解压 DOCX（DOCX 本质是 ZIP） -->
+    <script src="lib/jszip.min.js"></script>
+
+    <!-- pdf.js：解析 PDF -->
+    <script src="lib/pdf.min.js"></script>
+
+    <!-- exifr：读取图片 EXIF 元数据 -->
+    <script src="lib/exifr.min.js"></script>
+
+    <!-- pdf-lib：PDF 深度清洗（把页面重渲染成图片后重新拼装 PDF） -->
+    <script src="lib/pdf-lib.min.js"></script>
+
+    <!-- Tesseract.js：图片 OCR 文字识别（用于检测图片中的身份证号、手机号等个人信息） -->
+    <script src="lib/tesseract/tesseract.min.js"></script>
+
+    <!-- ==================================================== -->
+    <!-- 项目脚本（注意顺序：工具 → 各分析模块 → 评分 → 清洗 → 主入口） -->
+    <!-- ==================================================== -->
+    <script src="js/utils.js?v=20261021"></script>
+    <script src="js/analyze-docx.js?v=20261021"></script>
+    <script src="js/analyze-xlsx.js?v=20261021"></script>
+    <script src="js/analyze-pptx.js?v=20261021"></script>
+    <script src="js/analyze-doc.js?v=20261021"></script>
+    <script src="js/analyze-image.js?v=20261022f"></script>
+    <script src="js/analyze-pdf.js?v=20261021"></script>
+    <script src="js/analyze-malware.js?v=20261023"></script>
+    <script src="js/risk-score.js?v=20261021"></script>
+    <script src="js/sanitize.js?v=20261022"></script>
+    <script src="js/main.js?v=20261022c"></script>
+</body>
+</html>
