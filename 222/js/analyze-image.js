@@ -1496,7 +1496,14 @@ async function detectAllImageText(fileInput) {
 }
 
 /** 使用 PaddleOCR.js 识别（深度学习，招牌/路标识别率极高） */
+// 串行锁：onnxruntime session 不能并发调用，必须一张一张排队跑
+detectWithPaddleOCR._queue = Promise.resolve();
 async function detectWithPaddleOCR(imageSource) {
+    const task = () => _detectWithPaddleOCR(imageSource);
+    detectWithPaddleOCR._queue = detectWithPaddleOCR._queue.then(task, task);
+    return detectWithPaddleOCR._queue;
+}
+async function _detectWithPaddleOCR(imageSource) {
     if (!detectWithPaddleOCR._instancePromise) {
         detectWithPaddleOCR._instancePromise = (async () => {
             const timeout = new Promise((_, rej) =>
